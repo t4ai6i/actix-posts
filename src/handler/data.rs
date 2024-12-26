@@ -48,6 +48,7 @@ static DATA_FILENAME: &str = "data.json";
 ///
 /// # Example
 /// ```rust
+/// use crate::actix_posts::handler::data::read_messages_from_file;
 /// let messages = read_messages_from_file("data.json");
 /// if messages.is_empty() {
 ///     println!("No messages found or failed to read file.");
@@ -59,7 +60,7 @@ static DATA_FILENAME: &str = "data.json";
 /// # Dependencies
 /// - Uses the standard library's [`std::fs::read_to_string`] for reading file content.
 /// - Requires the `serde_json` crate to deserialize JSON into the `Vec<Message>` type.
-fn read_messages_from_file(filename: &str) -> Vec<Message> {
+pub fn read_messages_from_file(filename: &str) -> Vec<Message> {
     std::fs::read_to_string(filename)
         .ok()
         .and_then(|data| serde_json::from_str::<Vec<Message>>(&data).ok())
@@ -81,6 +82,7 @@ fn read_messages_from_file(filename: &str) -> Vec<Message> {
 ///
 /// # Example
 /// ```rust
+/// use crate::actix_posts::handler::data::get_all;
 /// let all_messages = get_all();
 /// if all_messages.is_empty() {
 ///     println!("No messages found!");
@@ -123,6 +125,8 @@ pub fn get_all() -> Vec<Message> {
 ///
 /// # Example
 /// ```rust
+/// use crate::actix_posts::handler::data::get;
+/// use crate::actix_posts::handler::data::Message;
 /// let message = get(1);
 /// if message == Message::default() {
 ///     println!("Message not found!");
