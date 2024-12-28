@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+static DATA_FILENAME: &str = "data.json";
+
 /// Represents a user message.
 ///
 /// Each `Message` instance contains details about a message, such as
@@ -24,8 +26,6 @@ pub struct Message {
     /// The content of the message.
     pub content: String,
 }
-
-static DATA_FILENAME: &str = "data.json";
 
 /// Reads a JSON file and deserializes its content into a `Vec<Message>`.
 ///
@@ -80,18 +80,6 @@ pub fn read_messages_from_file(filename: &str) -> Vec<Message> {
 /// - If the data file cannot be read or contains invalid JSON, it will return an empty vector.
 /// - Sorting is done in-place on the vector before returning.
 ///
-/// # Example
-/// ```rust
-/// use crate::actix_posts::handler::data::get_all;
-/// let all_messages = get_all();
-/// if all_messages.is_empty() {
-///     println!("No messages found!");
-/// } else {
-///     println!("Found {} messages.", all_messages.len());
-///     println!("Most recent message: {:?}", all_messages.first());
-/// }
-/// ```
-///
 /// # Dependencies
 /// - Relies on `read_messages_from_file` to read and deserialize the data.
 /// - Relies on `DATA_FILENAME` for the file path.
@@ -123,18 +111,6 @@ pub fn get_all() -> Vec<Message> {
 /// - Searches for a `Message` where `id` (converted to `u32`) matches the provided ID using `find`.
 /// - Falls back to `Message::default()` if no match is found.
 ///
-/// # Example
-/// ```rust
-/// use crate::actix_posts::handler::data::get;
-/// use crate::actix_posts::handler::data::Message;
-/// let message = get(1);
-/// if message == Message::default() {
-///     println!("Message not found!");
-/// } else {
-///     println!("Found message: {:?}", message);
-/// }
-/// ```
-///
 /// # Dependencies
 /// - Relies on `read_messages_from_file` to load and deserialize messages from the file.
 /// - Relies on `DATA_FILENAME` for the file path.
@@ -147,6 +123,40 @@ pub fn get(id: i32) -> Message {
         .unwrap_or_default()
 }
 
+/// Adds a new message to the storage with a unique ID.
+///
+/// This function handles the creation of a new `Message` by reading the existing messages from
+/// a JSON file, determining the current highest ID, assigning a new unique ID to the provided
+/// message, and saving the updated message list back to the file.
+///
+/// # Arguments
+///
+/// * `message` - A mutable `Message` object that contains the data for the new message. The `id`
+/// will be overridden and assigned a unique value.
+///
+/// # Returns
+///
+/// * `Message` - The newly created message, including its assigned unique ID.
+///
+/// # Behavior
+///
+/// 1. Reads the current list of messages from the file specified by `DATA_FILENAME`.
+/// 2. Finds the highest existing message ID in the list.
+/// 3. Sets the new message's `id` to one higher than the current maximum ID or `1` if the list is empty.
+/// 4. Writes the updated list of messages (including the new message) back to the file.
+/// 5. Returns the newly added message.
+///
+/// # Panics
+///
+/// This function will panic if any of the following occur:
+/// - The data file (`DATA_FILENAME`) cannot be read or written.
+/// - Serialization or deserialization of the message list fails.
+///
+/// # Notes
+///
+/// This function assumes that `read_messages_from_file` and `serde_json` are used correctly and are
+/// compatible with the `Message` structure. The file specified by `DATA_FILENAME` must be accessible
+/// and valid in JSON format.
 pub fn create(mut message: Message) -> Message {
     let mut messages = read_messages_from_file(DATA_FILENAME);
     let max = messages.iter().map(|m| m.id).max().unwrap_or_default();
@@ -156,6 +166,39 @@ pub fn create(mut message: Message) -> Message {
     messages.pop().unwrap()
 }
 
+/// Updates an existing message in the storage.
+///
+/// This function takes a reference to a `Message` and updates the corresponding entry in the
+/// list of stored messages. The update is performed by matching the `id` of the provided message
+/// with an existing entry in the list.
+///
+/// # Arguments
+///
+/// * `message` - A reference to a `Message` object containing the updated data. The object must
+/// have an `id` field that matches an existing message in the storage.
+///
+/// # Behavior
+///
+/// 1. Reads the current list of messages stored in the file specified by `DATA_FILENAME`.
+/// 2. Searches for a message with the same `id` as the provided one.
+/// 3. If a match is found, replaces the existing message with the provided one.
+/// 4. Writes the updated list of messages back to the file.
+///
+/// If no message with the same `id` exists, the function performs no updates and no errors are raised.
+///
+/// # Panics
+///
+/// This function will panic if any of the following occur:
+/// - The data file (`DATA_FILENAME`) cannot be read or written.
+/// - Serialization or deserialization of the message list fails.
+///
+/// # Limitations
+///
+/// This function assumes that:
+/// - The file specified by `DATA_FILENAME` exists, is accessible, and is properly formatted.
+/// - The list of messages fits in memory since it loads the entire file contents at once.
+///
+/// In production scenarios, improved error handling and support for larger datasets may be necessary.
 pub fn update(message: &Message) {
     let mut messages = read_messages_from_file(DATA_FILENAME);
     if let Some(index) = messages.iter().position(|m| m.id == message.id) {
@@ -164,6 +207,39 @@ pub fn update(message: &Message) {
     }
 }
 
+/// Removes a message from the storage based on its ID.
+///
+/// This function deletes a message from the list of stored messages by matching the provided `id`.
+/// After removing the message, it updates the storage file with the modified list.
+///
+/// # Arguments
+///
+/// * `id` - An `i32` representing the ID of the message to be removed.
+///
+/// # Behavior
+///
+/// 1. Reads the current list of messages stored in the file specified by `DATA_FILENAME`.
+/// 2. Filters out the message with the specified `id` using the `retain` method.
+/// 3. Writes the updated list of messages back to the file.
+///
+/// If no message with the provided `id` exists, the function silently proceeds without making changes.
+///
+/// # Panics
+///
+/// This function will panic if any of the following occur:
+/// - The data file (`DATA_FILENAME`) cannot be read or written.
+/// - Serialization or deserialization of the message list fails.
+///
+/// # Limitations
+///
+/// - The function assumes that the file specified by `DATA_FILENAME` exists, is accessible, and
+///   contains valid JSON-formatted data.
+/// - Removes messages entirely based on the `id` field. Make sure the `id` is accurate.
+///
+/// # Notes
+///
+/// This function uses `retain` to filter out messages, which is efficient for small to moderately sized datasets.
+/// For larger datasets, a more scalable solution may need to be considered.
 pub fn remove(id: i32) {
     let mut messages = read_messages_from_file(DATA_FILENAME);
     messages.retain(|item| item.id != id);
