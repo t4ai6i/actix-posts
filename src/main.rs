@@ -8,7 +8,9 @@ use std::io::Result;
 async fn main() -> Result<()> {
     env_logger::init_from_env(Env::default().default_filter_or("info"));
     HttpServer::new(|| {
+        let tera = tera::Tera::new("templates/**/*.html").unwrap();
         App::new()
+            .app_data(web::Data::new(tera))
             .service(index)
             .service(new)
             .service(create)
