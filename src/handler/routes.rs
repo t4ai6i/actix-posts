@@ -3,82 +3,55 @@ use crate::handler::data::Message;
 use actix_web::{get, post, web, HttpResponse, Responder};
 use chrono::{DateTime, Local};
 use serde::Deserialize;
+use tera::Context;
 
 #[get("/posts")]
-pub async fn index() -> impl Responder {
+pub async fn index(tmpl: web::Data<tera::Tera>) -> impl Responder {
     let posts = data::get_all();
-    let mut body_str = String::new();
-    body_str += include_str!("../../static/header.html");
-    posts.iter().for_each(|post| {
-        body_str += &format!("<div><a href=\"/posts/{}\">", post.id);
-        body_str += &format!("<div>{} {}</div>", post.sender, post.posted);
-        body_str += &format!("<div><p>{}</p></div>", post.content.replace("\n", "<br />"));
-        body_str += "</a></div>";
-    });
-    body_str += "<div><a href=\"/posts/new\">作成</a></div>";
-    body_str += include_str!("../../static/footer.html");
+    let mut context = Context::new();
+    context.insert("posts", &posts);
+    let body_str = tmpl.render("index.html", &context).unwrap();
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(body_str)
 }
 
 #[get("/posts/{id}")]
-pub async fn show(info: web::Path<i32>) -> impl Responder {
+pub async fn show(tmpl: web::Data<tera::Tera>, info: web::Path<i32>) -> impl Responder {
     let info = info.into_inner();
     let post = data::get(info);
-    let mut body_str = String::new();
-    body_str += include_str!("../../static/header.html");
-    body_str += "<div>";
-    if post != Message::default() {
-        body_str += &format!("<div>投稿者：{}</div>", post.sender);
-        body_str += &format!("<div>投稿日時：{}</div>", post.posted);
-        body_str += &format!(
-            "<div>投稿内容：<br />{}</div>",
-            post.content.replace("\n", "<br />")
-        );
-        body_str += &format!("<div><a href=\"/posts/{}/edit\">編集</a> ", info);
-        body_str += &format!("<a href=\"/posts/{}/delete\">削除</a></div>", info);
-    } else {
-        body_str += "見つかりません。";
-    }
-    body_str += "</div>";
-    body_str += "<div><a href=\"/posts\">一覧へ</a></div>";
-    body_str += include_str!("../../static/footer.html");
+    let mut context = Context::new();
+    context.insert("post", &post);
+    let body_str = tmpl.render("show.html", &context).unwrap();
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(body_str)
 }
 
 #[get("/posts/new")]
-pub async fn new() -> impl Responder {
-    let mut body_str = String::new();
-    body_str += include_str!("../../static/header.html");
-    body_str += include_str!("../../static/form.html");
-    body_str = body_str.replace("{{action}}", "create");
-    body_str = body_str.replace("{{id}}", "0");
-    body_str = body_str.replace("{{posted}}", "");
-    body_str = body_str.replace("{{sender}}", "");
-    body_str = body_str.replace("{{content}}", "");
-    body_str = body_str.replace("{{button}}", "登録");
+pub async fn new(tmpl: web::Data<tera::Tera>) -> impl Responder {
+    let mut context = Context::new();
+    let post = Message {
+        ..Default::default()
+    };
+    context.insert("action", "create");
+    context.insert("post", &post);
+    context.insert("button", "投稿");
+    let body_str = tmpl.render("form.html", &context).unwrap();
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(body_str)
 }
 
 #[get("/posts/{id}/edit")]
-pub async fn edit(info: web::Path<i32>) -> impl Responder {
+pub async fn edit(tmpl: web::Data<tera::Tera>, info: web::Path<i32>) -> impl Responder {
     let info = info.into_inner();
     let post = data::get(info);
-    let mut body_str: String = "".to_string();
-    body_str += include_str!("../../static/header.html");
-    body_str += include_str!("../../static/form.html");
-    body_str += include_str!("../../static/footer.html");
-    body_str = body_str.replace("{{action}}", "update");
-    body_str = body_str.replace("{{id}}", &post.id.to_string());
-    body_str = body_str.replace("{{posted}}", &post.posted);
-    body_str = body_str.replace("{{sender}}", &post.sender);
-    body_str = body_str.replace("{{content}}", &post.content);
-    body_str = body_str.replace("{{button}}", "更新");
+    let mut context = Context::new();
+    context.insert("action", "update");
+    context.insert("post", &post);
+    context.insert("button", "更新");
+    let body_str = tmpl.render("form.html", &context).unwrap();
     HttpResponse::Ok()
         .content_type("text/html; charset=utf-8")
         .body(body_str)
