@@ -1,14 +1,21 @@
 use crate::handler::data;
 use crate::handler::data::Message;
+use actix_session::Session;
 use actix_web::{get, post, web, HttpResponse, Responder};
+use actix_web_flash_messages::{FlashMessage, IncomingFlashMessages, Level};
 use chrono::{DateTime, Local};
 use serde::Deserialize;
 use tera::Context;
 
 #[get("/posts")]
-pub async fn index(tmpl: web::Data<tera::Tera>) -> impl Responder {
+pub async fn index(tmpl: web::Data<tera::Tera>, messages: IncomingFlashMessages) -> impl Responder {
     let posts = data::get_all();
     let mut context = Context::new();
+    messages.iter().for_each(|message| match message.level() {
+        Level::Success => context.insert("success", message.content()),
+        Level::Error => context.insert("error", message.content()),
+        _ => (),
+    });
     context.insert("posts", &posts);
     let body_str = tmpl.render("index.html", &context).unwrap();
     HttpResponse::Ok()
@@ -17,10 +24,19 @@ pub async fn index(tmpl: web::Data<tera::Tera>) -> impl Responder {
 }
 
 #[get("/posts/{id}")]
-pub async fn show(tmpl: web::Data<tera::Tera>, info: web::Path<i32>) -> impl Responder {
+pub async fn show(
+    tmpl: web::Data<tera::Tera>,
+    info: web::Path<i32>,
+    messages: IncomingFlashMessages,
+) -> impl Responder {
     let info = info.into_inner();
     let post = data::get(info);
     let mut context = Context::new();
+    messages.iter().for_each(|message| match message.level() {
+        Level::Success => context.insert("success", message.content()),
+        Level::Error => context.insert("error", message.content()),
+        _ => (),
+    });
     context.insert("post", &post);
     let body_str = tmpl.render("show.html", &context).unwrap();
     HttpResponse::Ok()
@@ -29,9 +45,15 @@ pub async fn show(tmpl: web::Data<tera::Tera>, info: web::Path<i32>) -> impl Res
 }
 
 #[get("/posts/new")]
-pub async fn new(tmpl: web::Data<tera::Tera>) -> impl Responder {
+pub async fn new(tmpl: web::Data<tera::Tera>, session: Session) -> impl Responder {
     let mut context = Context::new();
+    let sender = if let Some(sender) = session.get::<String>("sender").unwrap() {
+        sender.clone()
+    } else {
+        "anonymous".to_string()
+    };
     let post = Message {
+        sender,
         ..Default::default()
     };
     context.insert("action", "create");
@@ -66,7 +88,7 @@ pub struct CreateForm {
 }
 
 #[post("/posts/create")]
-pub async fn create(params: web::Form<CreateForm>) -> impl Responder {
+pub async fn create(params: web::Form<CreateForm>, session: Session) -> impl Responder {
     let now: DateTime<Local> = Local::now();
     let mut message = Message {
         id: 0,
@@ -75,6 +97,12 @@ pub async fn create(params: web::Form<CreateForm>) -> impl Responder {
         content: params.content.clone(),
     };
     message = data::create(message);
+    if message.id == 0 {
+        FlashMessage::error("投稿でエラーが発生しました。").send();
+    } else {
+        FlashMessage::success("投稿しました。").send();
+    }
+    let _ = session.insert("sender", params.sender.clone());
     web::Redirect::to(format!("/posts/{}", message.id)).see_other()
 }
 
@@ -87,6 +115,7 @@ pub async fn update(params: web::Form<CreateForm>) -> impl Responder {
         content: params.content.clone(),
     };
     data::update(&message);
+    FlashMessage::success("更新しました。").send();
     web::Redirect::to(format!("/posts/{}", message.id)).see_other()
 }
 
@@ -94,6 +123,7 @@ pub async fn update(params: web::Form<CreateForm>) -> impl Responder {
 pub async fn destroy(info: web::Path<i32>) -> impl Responder {
     let info = info.into_inner();
     data::remove(info);
+    FlashMessage::success("削除しました。").send();
     web::Redirect::to("/posts").see_other()
 }
 
