@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+    {{ super() }}
 	{% if post.id == 0 %}
 		<div class="alert alert-danger">見つかりません。</div>
 	{% else %}
