@@ -1,3 +1,6 @@
+use actix_posts::handler::api::{
+    api_create, api_delete, api_index, api_not_found, api_show, api_update,
+};
 use actix_posts::handler::routes::{create, destroy, edit, index, new, not_found, show, update};
 use actix_session::storage::CookieSessionStore;
 use actix_session::SessionMiddleware;
@@ -30,6 +33,15 @@ async fn main() -> Result<()> {
             .service(update)
             .service(destroy)
             .service(show)
+            .service(
+                web::scope("/api")
+                    .service(api_index)
+                    .service(api_show)
+                    .service(api_create)
+                    .service(api_update)
+                    .service(api_delete)
+                    .default_service(web::to(api_not_found)),
+            )
             .default_service(web::to(not_found))
             .wrap(Logger::default())
             .wrap(message_framework.clone())
